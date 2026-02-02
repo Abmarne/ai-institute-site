@@ -7,9 +7,11 @@ A modern, responsive website for the Artificial Intelligence Research Institute 
 
 - Strapi is a headless CMS running in `server/` (Strapi v5). It exposes REST APIs under `http://localhost:1337/api/*` when running.
 - Admin UI lives at `http://localhost:1337/strapi/admin` in this repo (configurable via `STRAPI_ADMIN_URL`).
-    First run will prompt you to create an admin user.
-- Content is draft by default; use Publish to make it live. We often query with `publicationState=preview` during development to see both drafts and published.
-- Schema/content-type changes (editing files under `server/src/api/**/content-types/*`) only take effect when Strapi boots and builds its types. If you're running via Docker, you need to rebuild or run Strapi locally to regenerate. Mounting endpoints alone won't propagate schema changes.
+    First run will prompt you to create an admin user. Don't
+- Content is draft by default; use Publish to make it live. 
+- Schema/content-type changes (editing files under `server/src/api/**/content-types/*`) only take effect when Strapi boots and builds its types. If you're running via Docker, you need to rebuild or run Strapi locally to regenerate. Mounting endpoints alone won't propagate schema changes. It is suggested that you make said changes from the admin interface, but Copilot can slam them into Strapi too.
+- We keep some JSONs around as a seed. You can see below how to quickly get some data in gear. 
+- Make sure to make an .env file, you can copy the example just fine in dev, but you have to populate the STRAPI_API_TOKEN var from the admin interface, otherwise all API calls will fail.
 
 ## Running the migration script (JSON → Strapi)
 
@@ -43,25 +45,8 @@ What to expect:
 
 ## Docker vs local running and schema changes
 
-- When developing content types, run Strapi locally (`cd server && npm install && npm run develop`) to quickly iterate. Strapi needs to reboot to apply schema changes.
-- With Docker, schema/content-type changes require rebuilding the image or restarting with volumes that include changed files. A simple container restart without rebuild may not regenerate Strapi types. So run docker compose up --build a fuck ton. 
-
-## Fast start
-
-```bash
-# Build and start services
-docker compose up --build
-
-# Migrate legacy data (in another terminal)
-
-docker cp web/src/app/data ai-institute-site-strapi-1:/app/migration-data
-
-docker exec -it ai-institute-site-strapi-1 /bin/sh -c "MIGRATION_DATA_ROOT=/app/migration-data node /app/scripts/migrate-json.js"
-
-# Visit
-# Admin: http://localhost:1337/admin
-# Site:  http://localhost:3000
-```
+- Everything is made to run in containers, so Strapi might break or behave unexpectedly if it doesn't find it's postgres DB. It does have a SqlLite fallback ready to go, just so you know. 
+- Feel free to CD into the web directory and run `npm run dev` if you don't need anything from strapi. 
 
 ## Features
 
