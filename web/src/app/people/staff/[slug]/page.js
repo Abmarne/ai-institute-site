@@ -45,6 +45,7 @@ export default async function StaffDetailPage({ params }) {
 
   const normalizePublication = (pub) => ({
     id: pub.id ?? null,
+    slug: pub.slug || "",
     title: pub.title || "",
     year: pub.year ?? null,
     domain: pub.domain || "",

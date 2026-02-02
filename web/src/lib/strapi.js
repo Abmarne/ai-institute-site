@@ -1,4 +1,5 @@
 import { getEnv, normalizeBaseUrl, requireEnv } from './env';
+import { toPublicationSlug } from './slug';
 
 const isServer = typeof window === 'undefined';
 
@@ -553,6 +554,36 @@ export async function getPublications() {
 }
 
 /**
+ * Get a single publication by slug from Strapi
+ * @param {string} slug - The publication slug
+ * @returns {Promise<Object|null>} Publication entry or null
+ */
+export async function getPublicationBySlug(slug) {
+  try {
+    if (!slug) return null;
+    const params = new URLSearchParams();
+    params.set('filters[slug][$eq]', slug);
+    params.set('sort', 'year:desc');
+    setPopulate(params, 'populate[authors]', PERSON_FLAT_POPULATE);
+    setPopulate(params, 'populate[projects]', {
+      fields: ['title', 'slug'],
+      populate: {
+        lead: PERSON_FLAT_POPULATE,
+        domains: DEPARTMENT_POPULATE,
+      },
+    });
+    setPopulate(params, 'populate[domain]', DEPARTMENT_POPULATE);
+    setPopulate(params, 'populate[themes]', { fields: ['name', 'slug'] });
+    setPopulate(params, 'populate[datasets]', { fields: ['title', 'slug', 'source_url', 'platform'] });
+    const data = await fetchAPI(`/publications?${params.toString()}`);
+    return data.data?.[0] || null;
+  } catch (error) {
+    console.error('Failed to fetch publication by slug:', error);
+    return null;
+  }
+}
+
+/**
  * Get all news articles from Strapi
  * @returns {Promise<Array>} Array of news articles
  */
@@ -891,20 +922,43 @@ export function transformPublicationData(strapiPubs) {
       };
     });
 
+    const themes = toArray(attributes.themes?.data ?? attributes.themes).map((theme) => {
+      const themeData = theme?.attributes ?? theme ?? {};
+      return {
+        id: theme?.id ?? null,
+        slug: themeData.slug || '',
+        name: themeData.name || '',
+      };
+    });
+
+    const datasets = toArray(attributes.datasets?.data ?? attributes.datasets).map((ds) => {
+      const dsData = ds?.attributes ?? ds ?? {};
+      return {
+        id: ds?.id ?? null,
+        slug: dsData.slug || '',
+        title: dsData.title || '',
+        url: dsData.source_url || dsData.url || '',
+        platform: dsData.platform || '',
+      };
+    });
+
     const domainEntry = attributes.domain?.data ?? attributes.domain;
     const domainData = domainEntry?.attributes ?? domainEntry ?? {};
     const domain = domainData.name || (typeof attributes.domain === 'string' ? attributes.domain : '');
 
     return {
       id: pub?.id ?? null,
-      slug: attributes.slug || '',
+      slug: attributes.slug || toPublicationSlug({ title: attributes.title, year: attributes.year }),
       title: attributes.title || '',
       year: attributes.year ?? null,
       domain,
       kind: attributes.kind || '',
       description: stripHtml(attributes.description) || '',
       authors,
-      docUrl: attributes.doc_url || attributes.docUrl || attributes.external_url || attributes.externalUrl || '',
+      docUrl: attributes.doc_url || attributes.docUrl || '',
+      externalUrl: attributes.external_url || attributes.externalUrl || '',
+      themes,
+      datasets,
       projects,
       _strapi: pub,
     };

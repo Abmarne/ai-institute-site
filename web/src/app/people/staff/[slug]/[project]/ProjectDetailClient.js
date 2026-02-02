@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import Markdown from "markdown-to-jsx";
+import { toPublicationSlug } from "@/lib/slug";
 
 const FALLBACK_AVATAR = "/people/Basic_avatar_image.png";
 
@@ -316,19 +317,40 @@ export default function ProjectDetailClient({
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900 dark:text-white leading-snug">
-                            {pub.title}
+                            {toPublicationSlug(pub) ? (
+                              <Link
+                                href={`/research/publications/${encodeURIComponent(toPublicationSlug(pub))}`}
+                                className="hover:underline"
+                              >
+                                {pub.title}
+                              </Link>
+                            ) : (
+                              pub.title
+                            )}
                           </h4>
                           <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                              {pub.year} • {pub.kind}
                           </div>
                         </div>
-                        <Link 
-                           href={pub.docUrl || pub.external_url || "#"} 
-                           target="_blank"
-                           className="shrink-0 p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        >
-                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          {toPublicationSlug(pub) ? (
+                            <Link
+                              href={`/research/publications/${encodeURIComponent(toPublicationSlug(pub))}`}
+                              className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300"
+                            >
+                              Details
+                            </Link>
+                          ) : null}
+                          {pub.docUrl || pub.externalUrl ? (
+                            <Link
+                               href={pub.docUrl || pub.externalUrl || "#"}
+                               target="_blank"
+                               className="shrink-0 p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            >
+                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </Link>
+                          ) : null}
+                        </div>
                       </div>
                     </article>
                   ))}

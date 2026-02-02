@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Markdown from "markdown-to-jsx";
+import { toPublicationSlug } from "@/lib/slug";
 
 export default function ProjectDetailsClient({ project }) {
   if (!project) return <div className="p-6">Project not found.</div>;
@@ -280,20 +281,41 @@ export default function ProjectDetailsClient({ project }) {
                 key={`${pub.title || "pub"}-${idx}`}
                 className="border border-gray-200 dark:border-gray-800 rounded-lg p-3"
               >
-                <div className="font-medium text-gray-900 dark:text-gray-100">{pub.title}</div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  {toPublicationSlug(pub) ? (
+                    <Link
+                      href={`/research/publications/${encodeURIComponent(toPublicationSlug(pub))}`}
+                      className="hover:underline"
+                    >
+                      {pub.title}
+                    </Link>
+                  ) : (
+                    pub.title
+                  )}
+                </div>
                 {pub.description ? (
                   <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{pub.description}</p>
                 ) : null}
-                {pub.docUrl ? (
-                  <a
-                    href={pub.docUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-2 text-sm underline"
-                  >
-                    View documentation
-                  </a>
-                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {toPublicationSlug(pub) ? (
+                    <Link
+                      href={`/research/publications/${encodeURIComponent(toPublicationSlug(pub))}`}
+                      className="inline-flex items-center gap-2 text-sm underline"
+                    >
+                      View details
+                    </Link>
+                  ) : null}
+                  {pub.docUrl ? (
+                    <a
+                      href={pub.docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm underline"
+                    >
+                      View documentation
+                    </a>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

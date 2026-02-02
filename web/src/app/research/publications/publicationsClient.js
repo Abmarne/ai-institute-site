@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
+import { toPublicationSlug } from "@/lib/slug";
 
 // TODO: Same as in dataSetsClient.js, data logic should be reviewed if
 // it can't be replaced with functionalities from Strapi
@@ -49,14 +51,17 @@ const authorsToNames = (authors, bySlugMap) => {
 };
 
 const normalizePublication = (p, bySlugMap) => {
+  const slug = toPublicationSlug({ slug: p.slug, title: p.title, year: p.year });
   return {
+    slug,
     title: p.title || "",
     year: typeof p.year === "number" || typeof p.year === "string" ? String(p.year) : "",
     domain: p.domain || "",
     kind: p.kind || "",
     description: p.description || "",
     authors: authorsToNames(p.authors, bySlugMap),
-    docUrl: p.docUrl || p.url || p.link || p.doi || "",   
+    docUrl: p.docUrl || p.url || p.link || p.doi || "",
+    projects: Array.isArray(p.projects) ? p.projects : [],
   };
 };
 
@@ -272,7 +277,16 @@ export default function PublicationsClient({ publications: pubData, staff: staff
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100">
-                            {p.title}
+                            {p.slug ? (
+                              <Link
+                                href={`/research/publications/${encodeURIComponent(p.slug)}`}
+                                className="hover:underline"
+                              >
+                                {p.title}
+                              </Link>
+                            ) : (
+                              p.title
+                            )}
                           </div>
 
                           <div className="mt-1 text-sm text-gray-800 dark:text-gray-200 space-y-0.5">
@@ -289,6 +303,30 @@ export default function PublicationsClient({ publications: pubData, staff: staff
                             <div>
                               <span className="font-medium">Type:</span> {p.kind || "—"}
                             </div>
+                            {Array.isArray(p.projects) && p.projects.length ? (
+                              <div>
+                                <span className="font-medium">Projects:</span>{" "}
+                                <span className="inline-flex flex-wrap gap-2">
+                                  {p.projects.map((proj, idx) => {
+                                    const projectSlug = proj?.slug || "";
+                                    const label = proj?.title || projectSlug || "Project";
+                                    return projectSlug ? (
+                                      <Link
+                                        key={`${projectSlug}-${idx}`}
+                                        href={`/research/projects/${encodeURIComponent(projectSlug)}`}
+                                        className="px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 text-xs hover:underline"
+                                      >
+                                        {label}
+                                      </Link>
+                                    ) : (
+                                      <span key={`${label}-${idx}`} className="px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 text-xs">
+                                        {label}
+                                      </span>
+                                    );
+                                  })}
+                                </span>
+                              </div>
+                            ) : null}
                             {p.description ? (
                               <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
                                 {p.description}
@@ -296,27 +334,37 @@ export default function PublicationsClient({ publications: pubData, staff: staff
                             ) : null}
                           </div>
 
-                          {p.docUrl && (
-                            <a
-                              href={p.docUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition text-sm"
-                              aria-label="Open publication documentation in a new tab"
-                            >
-                              View documentation
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {p.slug ? (
+                              <Link
+                                href={`/research/publications/${encodeURIComponent(p.slug)}`}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-700/60 dark:text-blue-300 dark:hover:bg-blue-900/30 transition text-sm"
                               >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 18h6" />
-                              </svg>
-                            </a>
-                          )}
+                                View details
+                              </Link>
+                            ) : null}
+                            {p.docUrl && (
+                              <a
+                                href={p.docUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition text-sm"
+                                aria-label="Open publication documentation in a new tab"
+                              >
+                                View documentation
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 18h6" />
+                                </svg>
+                              </a>
+                            )}
+                          </div>
                         </div>
 
                         <div className="shrink-0">

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { toPublicationSlug } from "@/lib/slug";
 
 export default function StaffDetailClient({ person, publications, projects, slug }) {
   const [view, setView] = useState("publications");
@@ -200,10 +201,23 @@ export default function StaffDetailClient({ person, publications, projects, slug
             <div>
               {filteredPubs.length ? (
                 <ul className="space-y-4">
-                  {filteredPubs.map((pub, i) => (
-                    <li key={i} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                  {filteredPubs.map((pub, i) => {
+                    const publicationSlug = toPublicationSlug(pub);
+                    return (
+                      <li key={i} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                       <div className="flex items-baseline gap-2">
-                        <div className="font-medium">{pub.title}</div>
+                        <div className="font-medium">
+                          {publicationSlug ? (
+                            <Link
+                              href={`/research/publications/${encodeURIComponent(publicationSlug)}`}
+                              className="hover:underline"
+                            >
+                              {pub.title}
+                            </Link>
+                          ) : (
+                            pub.title
+                          )}
+                        </div>
                         {pub.year && <span className="text-sm opacity-70">({pub.year})</span>}
                       </div>
                       
@@ -226,21 +240,32 @@ export default function StaffDetailClient({ person, publications, projects, slug
                         </p>
                       )}
 
-                      {pub.docUrl && (
-                        <a
-                          href={pub.docUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition text-sm"
-                        >
-                          View document
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 18h6" />
-                          </svg>
-                        </a>
-                      )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {publicationSlug ? (
+                          <Link
+                            href={`/research/publications/${encodeURIComponent(publicationSlug)}`}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-700/60 dark:text-blue-300 dark:hover:bg-blue-900/30 transition text-sm"
+                          >
+                            View details
+                          </Link>
+                        ) : null}
+                        {pub.docUrl && (
+                          <a
+                            href={pub.docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition text-sm"
+                          >
+                            View document
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 18h6" />
+                            </svg>
+                          </a>
+                        )}
+                      </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="text-gray-500">No publications match your filters.</p>
