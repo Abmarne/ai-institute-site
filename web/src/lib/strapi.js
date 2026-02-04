@@ -1,4 +1,5 @@
 import { getEnv, normalizeBaseUrl, requireEnv } from './env';
+import { toPublicationSlug } from './slug';
 
 const isServer = typeof window === 'undefined';
 
@@ -71,7 +72,8 @@ const setPopulate = (params, baseKey, config = {}) => {
   const fields = Array.isArray(config.fields) ? config.fields : [];
 
   const nestedPopulate = config.populate && typeof config.populate === 'object' ? config.populate : {};
-  const hasNestedPopulate = Object.keys(nestedPopulate).length > 0;
+  const fragments = config.on && typeof config.on === 'object' ? config.on : {};
+  const hasNestedPopulate = Object.keys(nestedPopulate).length > 0 || Object.keys(fragments).length > 0;
 
   // Strapi v5: when a populate entry has sub-keys (fields/populate), it must be treated as an object.
   // Only leaf populate keys should get a value.
@@ -96,6 +98,10 @@ const setPopulate = (params, baseKey, config = {}) => {
 
   Object.entries(nestedPopulate).forEach(([relation, relationConfig]) => {
     setPopulate(params, `${baseKey}[populate][${relation}]`, relationConfig || {});
+  });
+
+  Object.entries(fragments).forEach(([componentUid, fragmentConfig]) => {
+    setPopulate(params, `${baseKey}[on][${componentUid}]`, fragmentConfig || {});
   });
 };
 
@@ -180,13 +186,22 @@ const SUPPORT_UNIT_POPULATE = {
 
 
 const PUBLICATION_POPULATE = {
-  fields: ['title', 'slug', 'year', 'kind', 'description', 'doc_url', 'external_url'],
+  fields: ['title', 'slug', 'year', 'kind', 'description'],
   populate: {
     domain: DEPARTMENT_POPULATE,
     projects: {
       fields: ['title', 'slug'],
     },
     authors: PERSON_FLAT_POPULATE,
+    pdfFile: {
+      fields: ['name', 'url', 'mime', 'ext', 'size'],
+    },
+    bibFile: {
+      fields: ['name', 'url', 'mime', 'ext', 'size'],
+    },
+    attachments: {
+      fields: ['name', 'url', 'mime', 'ext', 'size'],
+    },
   },
 };
 
@@ -479,7 +494,38 @@ export async function getProjectBySlug(slug) {
       populate: {
         ...PROJECT_POPULATE.populate,
         heroImage: {},
-        body: {},
+        body: {
+          on: {
+            'shared.rich-text': {
+              fields: ['body'],
+            },
+            'shared.section': {
+              fields: ['heading', 'subheading', 'body'],
+              populate: {
+                media: { fields: ['url', 'alternativeText', 'caption', 'width', 'height'] },
+              },
+            },
+            'shared.media': {
+              populate: {
+                file: { fields: ['url', 'alternativeText', 'caption', 'width', 'height'] },
+              },
+            },
+            'shared.slider': {
+              populate: {
+                files: { fields: ['url', 'alternativeText', 'caption', 'width', 'height'] },
+              },
+            },
+          },
+        },
+        team: {
+          populate: {
+            person: PERSON_WITH_IMAGE_POPULATE,
+          },
+        },
+        timeline: {},
+        datasets: {
+          fields: ['title', 'slug', 'source_url', 'platform'],
+        },
       },
     });
 
@@ -508,11 +554,47 @@ export async function getPublications() {
       },
     });
     setPopulate(params, 'populate[domain]', DEPARTMENT_POPULATE);
+    setPopulate(params, 'populate[pdfFile]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
+    setPopulate(params, 'populate[bibFile]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
+    setPopulate(params, 'populate[attachments]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
     const data = await fetchAPI(`/publications?${params.toString()}`);
     return data.data || [];
   } catch (error) {
     console.error('Failed to fetch publications:', error);
     return [];
+  }
+}
+
+/**
+ * Get a single publication by slug from Strapi
+ * @param {string} slug - The publication slug
+ * @returns {Promise<Object|null>} Publication entry or null
+ */
+export async function getPublicationBySlug(slug) {
+  try {
+    if (!slug) return null;
+    const params = new URLSearchParams();
+    params.set('filters[slug][$eq]', slug);
+    params.set('sort', 'year:desc');
+    setPopulate(params, 'populate[authors]', PERSON_FLAT_POPULATE);
+    setPopulate(params, 'populate[projects]', {
+      fields: ['title', 'slug'],
+      populate: {
+        lead: PERSON_FLAT_POPULATE,
+        domains: DEPARTMENT_POPULATE,
+      },
+    });
+    setPopulate(params, 'populate[domain]', DEPARTMENT_POPULATE);
+    setPopulate(params, 'populate[themes]', { fields: ['name', 'slug'] });
+    setPopulate(params, 'populate[datasets]', { fields: ['title', 'slug', 'source_url', 'platform'] });
+    setPopulate(params, 'populate[pdfFile]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
+    setPopulate(params, 'populate[bibFile]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
+    setPopulate(params, 'populate[attachments]', { fields: ['name', 'url', 'mime', 'ext', 'size'] });
+    const data = await fetchAPI(`/publications?${params.toString()}`);
+    return data.data?.[0] || null;
+  } catch (error) {
+    console.error('Failed to fetch publication by slug:', error);
+    return null;
   }
 }
 
@@ -855,20 +937,84 @@ export function transformPublicationData(strapiPubs) {
       };
     });
 
+    const themes = toArray(attributes.themes?.data ?? attributes.themes).map((theme) => {
+      const themeData = theme?.attributes ?? theme ?? {};
+      return {
+        id: theme?.id ?? null,
+        slug: themeData.slug || '',
+        name: themeData.name || '',
+      };
+    });
+
+    const datasets = toArray(attributes.datasets?.data ?? attributes.datasets).map((ds) => {
+      const dsData = ds?.attributes ?? ds ?? {};
+      return {
+        id: ds?.id ?? null,
+        slug: dsData.slug || '',
+        title: dsData.title || '',
+        url: dsData.source_url || dsData.url || '',
+        platform: dsData.platform || '',
+      };
+    });
+
+    const pdfFile = (() => {
+      const file = attributes.pdfFile?.data ?? attributes.pdfFile;
+      if (!file) return null;
+      const fileData = file?.attributes ?? file ?? {};
+      return {
+        id: file?.id ?? null,
+        name: fileData.name || '',
+        url: resolveMediaUrl(file),
+        mime: fileData.mime || '',
+        ext: fileData.ext || '',
+        size: typeof fileData.size === 'number' ? fileData.size : null,
+      };
+    })();
+
+    const bibFile = (() => {
+      const file = attributes.bibFile?.data ?? attributes.bibFile;
+      if (!file) return null;
+      const fileData = file?.attributes ?? file ?? {};
+      return {
+        id: file?.id ?? null,
+        name: fileData.name || '',
+        url: resolveMediaUrl(file),
+        mime: fileData.mime || '',
+        ext: fileData.ext || '',
+        size: typeof fileData.size === 'number' ? fileData.size : null,
+      };
+    })();
+
+    const attachments = toArray(attributes.attachments?.data ?? attributes.attachments).map((file) => {
+      const fileData = file?.attributes ?? file ?? {};
+      return {
+        id: file?.id ?? null,
+        name: fileData.name || '',
+        url: resolveMediaUrl(file),
+        mime: fileData.mime || '',
+        ext: fileData.ext || '',
+        size: typeof fileData.size === 'number' ? fileData.size : null,
+      };
+    });
+
     const domainEntry = attributes.domain?.data ?? attributes.domain;
     const domainData = domainEntry?.attributes ?? domainEntry ?? {};
     const domain = domainData.name || (typeof attributes.domain === 'string' ? attributes.domain : '');
 
     return {
       id: pub?.id ?? null,
-      slug: attributes.slug || '',
+      slug: attributes.slug || toPublicationSlug({ title: attributes.title, year: attributes.year }),
       title: attributes.title || '',
       year: attributes.year ?? null,
       domain,
       kind: attributes.kind || '',
       description: stripHtml(attributes.description) || '',
       authors,
-      docUrl: attributes.doc_url || attributes.docUrl || attributes.external_url || attributes.externalUrl || '',
+      pdfFile,
+      bibFile,
+      themes,
+      datasets,
+      attachments,
       projects,
       _strapi: pub,
     };
@@ -914,6 +1060,68 @@ export function transformNewsData(strapiNews) {
  */
 export function transformProjectData(strapiProjects) {
   const list = Array.isArray(strapiProjects) ? strapiProjects : strapiProjects ? [strapiProjects] : [];
+
+  const normalizeBodyBlocks = (blocks) =>
+    toArray(blocks)
+      .map((block) => {
+        if (!block || typeof block !== 'object') return null;
+        switch (block.__component) {
+          case 'shared.media':
+            return {
+              ...block,
+              file: resolveMediaUrl(block.file),
+            };
+          case 'shared.section':
+            return {
+              ...block,
+              media: resolveMediaUrl(block.media),
+            };
+          case 'shared.slider':
+            return {
+              ...block,
+              files: toArray(block.files).map(resolveMediaUrl).filter(Boolean),
+            };
+          default:
+            return block;
+        }
+      })
+      .filter(Boolean);
+
+  const normalizeTeamEntries = (items) =>
+    toArray(items)
+      .map((entry) => {
+        if (!entry) return null;
+        const personEntry = entry?.person?.data ?? entry?.person;
+        const personAttr = personEntry?.attributes ?? personEntry ?? {};
+        return {
+          role: entry?.role || '',
+          isLead: !!entry?.isLead,
+          person: personEntry
+            ? {
+                id: personEntry?.id ?? null,
+                slug: personAttr.slug || '',
+                name: personAttr.fullName || personAttr.name || '',
+                title: personAttr.position || personAttr.title || '',
+                email: personAttr.email || '',
+                phone: personAttr.phone || '',
+                image: resolveMediaUrl(personAttr.portrait),
+              }
+            : null,
+        };
+      })
+      .filter(Boolean);
+
+  const normalizeTimelineEntries = (items) =>
+    toArray(items)
+      .map((entry) => {
+        if (!entry) return null;
+        return {
+          label: entry?.label || '',
+          date: entry?.date || '',
+          description: entry?.description || '',
+        };
+      })
+      .filter(Boolean);
 
   return list.map((project) => {
     const attributes = project?.attributes ?? project ?? {};
@@ -972,6 +1180,17 @@ export function transformProjectData(strapiProjects) {
       };
     });
 
+    const datasets = toArray(attributes.datasets?.data ?? attributes.datasets).map((ds) => {
+      const dsAttrs = ds?.attributes ?? ds ?? {};
+      return {
+        id: ds?.id ?? null,
+        title: dsAttrs.title || '',
+        slug: dsAttrs.slug || '',
+        url: dsAttrs.source_url || '',
+        platform: dsAttrs.platform || '',
+      };
+    });
+
     const leadEntry = attributes.lead?.data ?? attributes.lead;
     const leadAttr = leadEntry?.attributes ?? leadEntry ?? {};
     const leadDetails = leadEntry
@@ -1006,6 +1225,7 @@ export function transformProjectData(strapiProjects) {
       slug: attributes.slug || '',
       title: attributes.title || '',
       abstract: attributes.abstract || '',
+      body: normalizeBodyBlocks(attributes.body),
       phase: attributes.phase || attributes.status || '',
       isIndustryEngagement: !!attributes.isIndustryEngagement,
       heroImage: resolveMediaUrl(attributes.heroImage),
@@ -1019,7 +1239,10 @@ export function transformProjectData(strapiProjects) {
       domains,
       domain: domains.map((d) => d.name).filter(Boolean),
       members,
+      team: normalizeTeamEntries(attributes.team),
+      timeline: normalizeTimelineEntries(attributes.timeline),
       publications,
+      datasets,
       lead: leadName,
       leadName,
       leadSlug,

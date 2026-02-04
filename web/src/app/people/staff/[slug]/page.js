@@ -45,6 +45,7 @@ export default async function StaffDetailPage({ params }) {
 
   const normalizePublication = (pub) => ({
     id: pub.id ?? null,
+    slug: pub.slug || "",
     title: pub.title || "",
     year: pub.year ?? null,
     domain: pub.domain || "",
@@ -53,7 +54,7 @@ export default async function StaffDetailPage({ params }) {
     authors: Array.isArray(pub.authors)
       ? pub.authors.map((author) => author?.name).filter(Boolean)
       : [],
-    docUrl: pub.docUrl || "",
+    pdfFile: pub.pdfFile || null,
   });
 
   const publications = publicationsRaw.map(normalizePublication);
